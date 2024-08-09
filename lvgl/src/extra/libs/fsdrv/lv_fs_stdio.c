@@ -3,7 +3,6 @@
  *
  */
 
-
 /*********************
  *      INCLUDES
  *********************/
@@ -12,10 +11,10 @@
 
 #include <stdio.h>
 #ifndef WIN32
-    #include <dirent.h>
-    #include <unistd.h>
+#include <dirent.h>
+#include <unistd.h>
 #else
-    #include <windows.h>
+#include <windows.h>
 #endif
 
 /*********************
@@ -26,7 +25,8 @@
 /**********************
  *      TYPEDEFS
  **********************/
-typedef struct {
+typedef struct
+{
 #ifdef WIN32
     HANDLE dir_p;
     char next_fn[MAX_PATH_LEN];
@@ -74,19 +74,19 @@ void lv_fs_stdio_init(void)
     lv_fs_drv_init(&fs_drv);
 
     /*Set up fields...*/
-    fs_drv.letter = LV_FS_STDIO_LETTER;
+    fs_drv.letter     = LV_FS_STDIO_LETTER;
     fs_drv.cache_size = LV_FS_STDIO_CACHE_SIZE;
 
-    fs_drv.open_cb = fs_open;
+    fs_drv.open_cb  = fs_open;
     fs_drv.close_cb = fs_close;
-    fs_drv.read_cb = fs_read;
+    fs_drv.read_cb  = fs_read;
     fs_drv.write_cb = fs_write;
-    fs_drv.seek_cb = fs_seek;
-    fs_drv.tell_cb = fs_tell;
+    fs_drv.seek_cb  = fs_seek;
+    fs_drv.tell_cb  = fs_tell;
 
     fs_drv.dir_close_cb = fs_dir_close;
-    fs_drv.dir_open_cb = fs_dir_open;
-    fs_drv.dir_read_cb = fs_dir_read;
+    fs_drv.dir_open_cb  = fs_dir_open;
+    fs_drv.dir_read_cb  = fs_dir_read;
 
     lv_fs_drv_register(&fs_drv);
 }
@@ -108,9 +108,12 @@ static void * fs_open(lv_fs_drv_t * drv, const char * path, lv_fs_mode_t mode)
 
     const char * flags = "";
 
-    if(mode == LV_FS_MODE_WR) flags = "wb";
-    else if(mode == LV_FS_MODE_RD) flags = "rb";
-    else if(mode == (LV_FS_MODE_WR | LV_FS_MODE_RD)) flags = "rb+";
+    if(mode == LV_FS_MODE_WR)
+        flags = "wb";
+    else if(mode == LV_FS_MODE_RD)
+        flags = "rb";
+    else if(mode == (LV_FS_MODE_WR | LV_FS_MODE_RD))
+        flags = "rb+";
 
     /*Make the path relative to the current directory (the projects root folder)*/
 
@@ -230,12 +233,10 @@ static void * fs_dir_open(lv_fs_drv_t * drv, const char * path)
     do {
         if(strcmp(fdata.cFileName, ".") == 0 || strcmp(fdata.cFileName, "..") == 0) {
             continue;
-        }
-        else {
+        } else {
             if(fdata.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
                 lv_snprintf(handle->next_fn, sizeof(handle->next_fn), "/%s", fdata.cFileName);
-            }
-            else {
+            } else {
                 lv_snprintf(handle->next_fn, sizeof(handle->next_fn), "%s", fdata.cFileName);
             }
             break;
@@ -266,11 +267,12 @@ static lv_fs_res_t fs_dir_read(lv_fs_drv_t * drv, void * dir_p, char * fn)
     struct dirent * entry;
     do {
         entry = readdir(handle->dir_p);
-        if(entry) {
-            if(entry->d_type == DT_DIR) lv_snprintf(fn, MAX_PATH_LEN, "/%s", entry->d_name);
-            else strcpy(fn, entry->d_name);
-        }
-        else {
+        if(entry) { // 4==DT_DIR
+            if(entry->d_type == 4)
+                lv_snprintf(fn, MAX_PATH_LEN, "/%s", entry->d_name);
+            else
+                strcpy(fn, entry->d_name);
+        } else {
             strcpy(fn, "");
         }
     } while(strcmp(fn, "/.") == 0 || strcmp(fn, "/..") == 0);
@@ -284,12 +286,10 @@ static lv_fs_res_t fs_dir_read(lv_fs_drv_t * drv, void * dir_p, char * fn)
     do {
         if(strcmp(fdata.cFileName, ".") == 0 || strcmp(fdata.cFileName, "..") == 0) {
             continue;
-        }
-        else {
+        } else {
             if(fdata.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
                 lv_snprintf(handle->next_fn, sizeof(handle->next_fn), "/%s", fdata.cFileName);
-            }
-            else {
+            } else {
                 lv_snprintf(handle->next_fn, sizeof(handle->next_fn), "%s", fdata.cFileName);
             }
             break;
@@ -322,8 +322,7 @@ static lv_fs_res_t fs_dir_close(lv_fs_drv_t * drv, void * dir_p)
 #else /*LV_USE_FS_STDIO == 0*/
 
 #if defined(LV_FS_STDIO_LETTER) && LV_FS_STDIO_LETTER != '\0'
-    #warning "LV_USE_FS_STDIO is not enabled but LV_FS_STDIO_LETTER is set"
+#warning "LV_USE_FS_STDIO is not enabled but LV_FS_STDIO_LETTER is set"
 #endif
 
 #endif /*LV_USE_FS_POSIX*/
-
