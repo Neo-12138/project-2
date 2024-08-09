@@ -27,26 +27,24 @@ extern "C" {
  *********************/
 
 /*Drag threshold in pixels*/
-#define LV_INDEV_DEF_SCROLL_LIMIT         10
+#define LV_INDEV_DEF_SCROLL_LIMIT 10
 
 /*Drag throw slow-down in [%]. Greater value -> faster slow-down*/
-#define LV_INDEV_DEF_SCROLL_THROW         10
+#define LV_INDEV_DEF_SCROLL_THROW 10
 
 /*Long press time in milliseconds.
  *Time to send `LV_EVENT_LONG_PRESSSED`)*/
-#define LV_INDEV_DEF_LONG_PRESS_TIME      400
+#define LV_INDEV_DEF_LONG_PRESS_TIME 400
 
 /*Repeated trigger period in long press [ms]
  *Time between `LV_EVENT_LONG_PRESSED_REPEAT*/
-#define LV_INDEV_DEF_LONG_PRESS_REP_TIME  100
-
+#define LV_INDEV_DEF_LONG_PRESS_REP_TIME 100
 
 /*Gesture threshold in pixels*/
-#define LV_INDEV_DEF_GESTURE_LIMIT        50
+#define LV_INDEV_DEF_GESTURE_LIMIT 50
 
 /*Gesture min velocity at release before swipe (pixels)*/
 #define LV_INDEV_DEF_GESTURE_MIN_VELOCITY 3
-
 
 /**********************
  *      TYPEDEFS
@@ -62,19 +60,18 @@ struct _lv_indev_drv_t;
 typedef enum {
     LV_INDEV_TYPE_NONE,    /**< Uninitialized state*/
     LV_INDEV_TYPE_POINTER, /**< Touch pad, mouse, external button*/
-    LV_INDEV_TYPE_KEYPAD,  /**< Keypad or keyboard*/
-    LV_INDEV_TYPE_BUTTON,  /**< External (hardware button) which is assigned to a specific point of the screen*/
-    LV_INDEV_TYPE_ENCODER, /**< Encoder with only Left, Right turn and a Button*/
+    LV_INDEV_TYPE_KEYPAD,
+    /**< Keypad or keyboard*/ // 键盘
+    LV_INDEV_TYPE_BUTTON,     /**< External (hardware button) which is assigned to a specific point of the screen*/
+    LV_INDEV_TYPE_ENCODER,    /**< Encoder with only Left, Right turn and a Button*/
 } lv_indev_type_t;
 
 /** States for input devices*/
-typedef enum {
-    LV_INDEV_STATE_RELEASED = 0,
-    LV_INDEV_STATE_PRESSED
-} lv_indev_state_t;
+typedef enum { LV_INDEV_STATE_RELEASED = 0, LV_INDEV_STATE_PRESSED } lv_indev_state_t;
 
 /** Data structure passed to an input driver to fill*/
-typedef struct {
+typedef struct
+{
     lv_point_t point; /**< For LV_INDEV_TYPE_POINTER the currently pressed point*/
     uint32_t key;     /**< For LV_INDEV_TYPE_KEYPAD the currently pressed key*/
     uint32_t btn_id;  /**< For LV_INDEV_TYPE_BUTTON the currently pressed button*/
@@ -85,7 +82,8 @@ typedef struct {
 } lv_indev_data_t;
 
 /** Initialized by the user and registered by 'lv_indev_add()'*/
-typedef struct _lv_indev_drv_t {
+typedef struct _lv_indev_drv_t
+{
 
     /**< Input device type*/
     lv_indev_type_t type;
@@ -129,7 +127,8 @@ typedef struct _lv_indev_drv_t {
 /** Run time data of input devices
  * Internally used by the library, you should not need to touch it.
  */
-typedef struct _lv_indev_proc_t {
+typedef struct _lv_indev_proc_t
+{
     lv_indev_state_t state; /**< Current state of the input device.*/
     /*Flags*/
     uint8_t long_pr_sent : 1;
@@ -137,14 +136,16 @@ typedef struct _lv_indev_proc_t {
     uint8_t disabled : 1;
     uint8_t wait_until_release : 1;
 
-    union {
-        struct {
+    union
+    {
+        struct
+        {
             /*Pointer and button data*/
-            lv_point_t act_point; /**< Current point of input device.*/
-            lv_point_t last_point; /**< Last point of input device.*/
+            lv_point_t act_point;      /**< Current point of input device.*/
+            lv_point_t last_point;     /**< Last point of input device.*/
             lv_point_t last_raw_point; /**< Last point read from read_cb. */
-            lv_point_t vect; /**< Difference between `act_point` and `last_point`.*/
-            lv_point_t scroll_sum; /*Count the dragged pixels to check LV_INDEV_DEF_SCROLL_LIMIT*/
+            lv_point_t vect;           /**< Difference between `act_point` and `last_point`.*/
+            lv_point_t scroll_sum;     /*Count the dragged pixels to check LV_INDEV_DEF_SCROLL_LIMIT*/
             lv_point_t scroll_throw_vect;
             lv_point_t scroll_throw_vect_ori;
             struct _lv_obj_t * act_obj;      /*The object being pressed*/
@@ -159,7 +160,8 @@ typedef struct _lv_indev_proc_t {
             lv_dir_t gesture_dir : 4;
             uint8_t gesture_sent : 1;
         } pointer;
-        struct {
+        struct
+        {
             /*Keypad data*/
             lv_indev_state_t last_state;
             uint32_t last_key;
@@ -172,7 +174,8 @@ typedef struct _lv_indev_proc_t {
 
 /** The main input device descriptor with driver, runtime data ('proc') and some additional
  * information*/
-typedef struct _lv_indev_t {
+typedef struct _lv_indev_t
+{
     struct _lv_indev_drv_t * driver;
     _lv_indev_proc_t proc;
     struct _lv_obj_t * cursor;     /**< Cursor for LV_INPUT_TYPE_POINTER*/
@@ -208,9 +211,9 @@ lv_indev_t * lv_indev_drv_register(struct _lv_indev_drv_t * driver);
 void lv_indev_drv_update(lv_indev_t * indev, struct _lv_indev_drv_t * new_drv);
 
 /**
-* Remove the provided input device. Make sure not to use the provided input device afterwards anymore.
-* @param indev pointer to delete
-*/
+ * Remove the provided input device. Make sure not to use the provided input device afterwards anymore.
+ * @param indev pointer to delete
+ */
 void lv_indev_delete(lv_indev_t * indev);
 
 /**

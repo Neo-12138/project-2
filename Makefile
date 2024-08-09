@@ -1,7 +1,7 @@
 #
 # Makefile
 #
-CC 				?= arm-linux-gcc
+CC 				= arm-linux-gcc
 LVGL_DIR_NAME 	?= lvgl
 LVGL_DIR 		?= .
 
