@@ -8,17 +8,69 @@
 #include <sys/time.h>
 #include <dirent.h>
 
-#define DISP_BUF_SIZE (128 * 800)
+#define DISP_BUF_SIZE (800 * 480)
 
-static void event_handler(lv_event_t * e)
+static lv_obj_t * user_input;
+static lv_obj_t * pass_input;
+static lv_obj_t * kb; // 虚拟键盘对象
+
+// 处理登录按钮的事件函数
+static void login_event_handler(lv_event_t * e)
 {
-    lv_event_code_t code = lv_event_get_code(e);
+    const char * user = lv_textarea_get_text(user_input);
+    const char * pass = lv_textarea_get_text(pass_input);
 
-    if(code == LV_EVENT_CLICKED) {
-        LV_LOG_USER("Clicked");
-    } else if(code == LV_EVENT_VALUE_CHANGED) {
-        LV_LOG_USER("Toggled");
+    if(strcmp(user, "admin") == 0 && strcmp(pass, "password") == 0) {
+        lv_label_set_text(lv_obj_get_child(lv_event_get_current_target(e), NULL), "Login Successful");
+    } else {
+        lv_label_set_text(lv_obj_get_child(lv_event_get_current_target(e), NULL), "Login Failed");
     }
+}
+
+// 处理输入框的点击事件，弹出虚拟键盘
+static void text_input_event_handler(lv_event_t * e)
+{
+    lv_keyboard_set_textarea(kb, lv_event_get_target(e)); // 将输入框与虚拟键盘绑定
+}
+
+// 创建登录界面函数
+void create_login_screen(void)
+{
+    lv_obj_t * login_screen = lv_obj_create(NULL);
+    lv_scr_load(login_screen);
+
+    lv_obj_t * user_label = lv_label_create(login_screen);
+    lv_label_set_text(user_label, "Username:");
+    lv_obj_align(user_label, LV_ALIGN_CENTER, -50, -50);
+
+    user_input = lv_textarea_create(login_screen);
+    lv_obj_align(user_input, LV_ALIGN_CENTER, 50, -50);
+    lv_textarea_set_one_line(user_input, true);
+    lv_obj_add_event_cb(user_input, text_input_event_handler, LV_EVENT_FOCUSED, NULL); // 添加事件处理器
+
+    lv_obj_t * pass_label = lv_label_create(login_screen);
+    lv_label_set_text(pass_label, "Password:");
+    lv_obj_align(pass_label, LV_ALIGN_CENTER, -50, 0);
+
+    pass_input = lv_textarea_create(login_screen);
+    lv_obj_align(pass_input, LV_ALIGN_CENTER, 50, 0);
+    lv_textarea_set_one_line(pass_input, true);
+    lv_textarea_set_password_mode(pass_input, true);
+    lv_obj_add_event_cb(pass_input, text_input_event_handler, LV_EVENT_FOCUSED, NULL); // 添加事件处理器
+
+    lv_obj_t * login_btn = lv_btn_create(login_screen);
+    lv_obj_align(login_btn, LV_ALIGN_CENTER, 0, 50);
+    lv_obj_set_size(login_btn, 120, 50);
+    lv_obj_add_event_cb(login_btn, login_event_handler, LV_EVENT_CLICKED, NULL);
+
+    lv_obj_t * btn_label = lv_label_create(login_btn);
+    lv_label_set_text(btn_label, "Login");
+    lv_obj_center(btn_label);
+
+    // 创建虚拟键盘
+    kb = lv_keyboard_create(login_screen);
+    lv_obj_set_size(kb, LV_HOR_RES, LV_VER_RES / 2); // 设置键盘尺寸
+    lv_obj_align(kb, LV_ALIGN_BOTTOM_MID, 0, 0);     // 将键盘对齐到屏幕底部
 }
 
 int main(void)
@@ -55,30 +107,8 @@ int main(void)
     lv_indev_t * mouse_indev = lv_indev_drv_register(&indev_drv_1); // 注册输入结构体对象到lvgl
 
     /* ****************************************************************** */
-
-    lv_obj_t * label;
-
-    lv_obj_t * btn1 = lv_btn_create(lv_scr_act());
-    lv_obj_add_event_cb(btn1, event_handler, LV_EVENT_ALL, NULL);
-    lv_obj_align(btn1, LV_ALIGN_CENTER, 0, -40);
-
-    label = lv_label_create(btn1);
-    lv_label_set_text(label, "Button");
-    lv_obj_center(label);
-
-    lv_obj_t * btn2 = lv_btn_create(lv_scr_act());
-    lv_obj_add_event_cb(btn2, event_handler, LV_EVENT_ALL, NULL);
-    lv_obj_align(btn2, LV_ALIGN_CENTER, 0, 40);
-    lv_obj_add_flag(btn2, LV_OBJ_FLAG_CHECKABLE);
-    lv_obj_set_height(btn2, LV_SIZE_CONTENT);
-
-    label = lv_label_create(btn2);
-    lv_label_set_text(label, "Toggle");
-    lv_obj_center(label);
-
+    create_login_screen();
     /* ************************************************************************ */
-    /*Create a Demo*/
-    // lv_demo_widgets(); // 官方写好的一个案例
 
     /*Handle LitlevGL tasks (tickless mode)*/ // 循环检测用户对设备是否有操作
     while(1) {
@@ -107,9 +137,3 @@ uint32_t custom_tick_get(void)
     uint32_t time_ms = now_ms - start_ms;
     return time_ms;
 }
-
-/*Set a cursor for the mouse*/ // 设置一个鼠标
-                               // LV_IMG_DECLARE(mouse_cursor_icon)
-// lv_obj_t * cursor_obj = lv_img_create(lv_scr_act()); /*Create an image object for the cursor */
-// lv_img_set_src(cursor_obj, &mouse_cursor_icon);      /*Set the image source*/
-// lv_indev_set_cursor(mouse_indev, cursor_obj);        /*Connect the image  object to the driver*/
