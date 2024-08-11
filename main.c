@@ -26,6 +26,14 @@
 
 int soc_fd; // 客户端套接字
 
+int init_sock(void);                                   // 函数原型
+int send_file(int sock_fd);                            // 函数原型
+int rec_file(int sock_fd);                             // 函数原型
+xmlChar * __get_cmd_id(xmlDocPtr doc, xmlNodePtr cur); // 函数原型
+xmlChar * parse_xml(char * xmlfile);                   // 函数原型
+void recording_btn(void);                              // 函数原型
+uint32_t custom_tick_get(void);                        // 函数原型
+
 int init_sock(void)
 {
     // 创建套接字
@@ -93,14 +101,19 @@ static void recording_btn_event(lv_event_t * e)
         LV_LOG_USER("Clicked");
         system("arecord -d3 -c1 -r16000 -twav -fS16_LE example.wav"); // 录音
         printf("录音结束\n");
-        send_file(soc_fd);
-        rec_file(soc_fd);
-        ///////////////////////
-        xmlChar * id = parse_xml("result.xml");
 
-        if(atoi((char *)id) == 2) printf("2222222\n");
-        /////////////////////////
-        printf("id=%s\n", id);
+        if(send_file(soc_fd) == 0) {
+            if(rec_file(soc_fd) == 0) {
+                xmlChar * id = parse_xml("result.xml");
+                if(id) {
+                    printf("id=%s\n", id);
+                    if(atoi((char *)id) == 2) {
+                        printf("2222222\n");
+                    }
+                    xmlFree(id);
+                }
+            }
+        }
     } else if(code == LV_EVENT_VALUE_CHANGED) {
         LV_LOG_USER("Toggled");
     }
