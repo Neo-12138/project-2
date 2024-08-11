@@ -12,8 +12,15 @@ WARNINGS		:= -Wall -Wshadow -Wundef -Wmissing-prototypes -Wno-discarded-qualifie
 					-Wno-unused-value -Wno-unused-parameter -Wno-missing-field-initializers -Wuninitialized -Wmaybe-uninitialized -Wall -Wextra -Wno-unused-parameter \
 					-Wno-missing-field-initializers -Wtype-limits -Wsizeof-pointer-memaccess -Wno-format-nonliteral -Wpointer-arith -Wno-cast-qual -Wmissing-prototypes \
 					-Wunreachable-code -Wno-switch-default -Wreturn-type -Wmultichar -Wno-discarded-qualifiers -Wformat-security -Wno-ignored-qualifiers -Wno-sign-compare -std=c99
-CFLAGS 			?= -O3 -g0 -I$(LVGL_DIR)/ $(WARNINGS)
-LDFLAGS 		?= -lm
+
+# CFLAGS 			?= -O3 -g0 -I$(LVGL_DIR)/ $(WARNINGS)
+# LDFLAGS 		?= -lm
+
+CFLAGS  ?= -O3 -g0 -I$(LVGL_DIR)/ -I/home/gec/xml/xml_set/include/libxml2/ $(WARNINGS)
+LDFLAGS ?= -lm -L/home/gec/xml/xml_set/lib/ -lxml2
+
+
+
 BIN 			= demo
 BUILD_DIR 		= ./build
 BUILD_OBJ_DIR 	= $(BUILD_DIR)/obj

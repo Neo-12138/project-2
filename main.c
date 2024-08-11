@@ -8,132 +8,299 @@
 #include <sys/time.h>
 #include <dirent.h>
 
-#define DISP_BUF_SIZE (800 * 480)
+#include <stdio.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <linux/input.h>
+#include <stdlib.h>
+#include <strings.h>
 
-static lv_obj_t * user_input;
-static lv_obj_t * pass_input;
-static lv_obj_t * kb; // 虚拟键盘对象
+#include "libxml/xmlmemory.h" //需要放在\86下
+#include "libxml/parser.h"
 
-// 处理登录按钮的事件函数
-static void login_event_handler(lv_event_t * e)
+#define DISP_BUF_SIZE (800 * 480) // 定义显示缓冲区的大小，800x480 像素
+
+int soc_fd; // 客户端套接字
+
+int init_sock(void)
 {
-    const char * user = lv_textarea_get_text(user_input);
-    const char * pass = lv_textarea_get_text(pass_input);
+    // 创建套接字
+    soc_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if(-1 == soc_fd) {
+        perror("socket failed!\n");
+        exit(-1);
+    }
+    // 设置端口复用
+    int on = 1;
+    setsockopt(soc_fd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
+    // 发起连接请求
+    printf("正在连接\n");
 
-    if(strcmp(user, "admin") == 0 && strcmp(pass, "password") == 0) {
-        lv_label_set_text(lv_obj_get_child(lv_event_get_current_target(e), NULL), "Login Successful");
-    } else {
-        lv_label_set_text(lv_obj_get_child(lv_event_get_current_target(e), NULL), "Login Failed");
+    socklen_t len = sizeof(struct sockaddr);
+    // 配置结构体
+    struct sockaddr_in jack;
+    jack.sin_family      = AF_INET;
+    jack.sin_port        = htons(3000);
+    jack.sin_addr.s_addr = inet_addr("192.168.10.148");
+
+    int con_fd = connect(soc_fd, (struct sockaddr *)&jack, len);
+    if(-1 == con_fd) {
+        perror("connect failed!\n");
+        exit(-1);
+    }
+    printf("已连接！\n");
+    return soc_fd;
+}
+
+// 发送录音文件
+int send_file(int soc_fd)
+{
+    int wav_fd = open("./example.wav", O_RDWR);
+    if(-1 == wav_fd) {
+        perror("open wav failed!\n");
+        return -1;
+    }
+    char buf[1024];
+    int sum = 0;
+    int ret;
+    while(1) {
+        memset(buf, 0, sizeof(buf));
+        ret = read(wav_fd, buf, 1024);
+        if(-1 == ret) {
+            perror("read wav failed!\n");
+            return -1;
+        } else if(0 == ret)
+            break;
+        else {
+            sum += ret;
+            write(soc_fd, buf, ret);
+        }
+    }
+    printf("写入了%d个字节", sum);
+    close(wav_fd);
+    printf("传输成功！\n");
+}
+
+static void recording_btn_event(lv_event_t * e)
+{
+    lv_event_code_t code = lv_event_get_code(e);
+
+    if(code == LV_EVENT_CLICKED) {
+        LV_LOG_USER("Clicked");
+        system("arecord -d3 -c1 -r16000 -twav -fS16_LE example.wav"); // 录音
+        printf("录音结束\n");
+        send_file(soc_fd);
+        rec_file(soc_fd);
+        ///////////////////////
+        xmlChar * id = parse_xml("result.xml");
+
+        if(atoi((char *)id) == 2) printf("2222222\n");
+        /////////////////////////
+        printf("id=%s\n", id);
+    } else if(code == LV_EVENT_VALUE_CHANGED) {
+        LV_LOG_USER("Toggled");
     }
 }
 
-// 处理输入框的点击事件，弹出虚拟键盘
-static void text_input_event_handler(lv_event_t * e)
+int rec_file(int soc_fd)
 {
-    lv_keyboard_set_textarea(kb, lv_event_get_target(e)); // 将输入框与虚拟键盘绑定
+    char xml_buf[1024];
+    int xml_fd;
+    xml_fd = open("./result.xml", O_RDWR | O_CREAT | O_TRUNC, 0666);
+    if(-1 == xml_fd) {
+        perror("open result failed!\n");
+        return -1;
+    }
+    int ret = read(soc_fd, xml_buf, 1024);
+    write(xml_fd, xml_buf, ret);
+    close(xml_fd);
 }
 
-// 创建登录界面函数
-void create_login_screen(void)
+// 传入的cur == object作为根节点
+xmlChar * __get_cmd_id(xmlDocPtr doc, xmlNodePtr cur)
 {
-    lv_obj_t * login_screen = lv_obj_create(NULL);
-    lv_scr_load(login_screen);
+    xmlChar *key, *id;
 
-    lv_obj_t * user_label = lv_label_create(login_screen);
-    lv_label_set_text(user_label, "Username:");
-    lv_obj_align(user_label, LV_ALIGN_CENTER, -50, -50);
+    cur = cur->xmlChildrenNode;
 
-    user_input = lv_textarea_create(login_screen);
-    lv_obj_align(user_input, LV_ALIGN_CENTER, 50, -50);
-    lv_textarea_set_one_line(user_input, true);
-    lv_obj_add_event_cb(user_input, text_input_event_handler, LV_EVENT_FOCUSED, NULL); // 添加事件处理器
+    while(cur != NULL) {
+        // 查找到cmd子节点
+        if((!xmlStrcmp(cur->name, (const xmlChar *)"cmd"))) {
+            // 取出内容
+            key = xmlNodeGetContent(cur);
 
-    lv_obj_t * pass_label = lv_label_create(login_screen);
-    lv_label_set_text(pass_label, "Password:");
-    lv_obj_align(pass_label, LV_ALIGN_CENTER, -50, 0);
+            printf("cmd: %s\n", key);
+            xmlFree(key);
 
-    pass_input = lv_textarea_create(login_screen);
-    lv_obj_align(pass_input, LV_ALIGN_CENTER, 50, 0);
-    lv_textarea_set_one_line(pass_input, true);
-    lv_textarea_set_password_mode(pass_input, true);
-    lv_obj_add_event_cb(pass_input, text_input_event_handler, LV_EVENT_FOCUSED, NULL); // 添加事件处理器
+            // 读取节点属性
+            id = xmlGetProp(cur, (const xmlChar *)"id");
+            printf("id: %s\n", id);
 
-    lv_obj_t * login_btn = lv_btn_create(login_screen);
-    lv_obj_align(login_btn, LV_ALIGN_CENTER, 0, 50);
-    lv_obj_set_size(login_btn, 120, 50);
-    lv_obj_add_event_cb(login_btn, login_event_handler, LV_EVENT_CLICKED, NULL);
+            xmlFree(doc);
+            return id;
+        }
+        cur = cur->next;
+    }
+    // 释放文档指针
+    xmlFree(doc);
+    return NULL;
+}
 
-    lv_obj_t * btn_label = lv_label_create(login_btn);
-    lv_label_set_text(btn_label, "Login");
-    lv_obj_center(btn_label);
+xmlChar * parse_xml(char * xmlfile)
+{
+    xmlDocPtr doc;
+    xmlNodePtr cur1, cur2;
 
-    // 创建虚拟键盘
-    kb = lv_keyboard_create(login_screen);
-    lv_obj_set_size(kb, LV_HOR_RES, LV_VER_RES / 2); // 设置键盘尺寸
-    lv_obj_align(kb, LV_ALIGN_BOTTOM_MID, 0, 0);     // 将键盘对齐到屏幕底部
+    // 分析一个xml文件，并返回一个xml文档的对象指针： 也就是指向树
+    doc = xmlParseFile(xmlfile);
+    if(doc == NULL) {
+        fprintf(stderr, "Document not parsed successfully. \n");
+        return NULL;
+    }
+
+    // 获得文档的根节点
+    cur1 = xmlDocGetRootElement(doc);
+    if(cur1 == NULL) {
+        fprintf(stderr, "empty document\n");
+        xmlFreeDoc(doc);
+        return NULL;
+    }
+    // 检查根节点的名称是否为nlp
+    if(xmlStrcmp(cur1->name, (const xmlChar *)"nlp")) {
+        fprintf(stderr, "document of the wrong type, root node != nlp");
+        xmlFreeDoc(doc);
+        return NULL;
+    }
+
+    // 获取子元素节点
+    cur1 = cur1->xmlChildrenNode;
+
+    while(cur1 != NULL) {
+        // 检查子元素是否为result
+        if((!xmlStrcmp(cur1->name, (const xmlChar *)"result"))) {
+            // 得到result的子节点
+            cur2 = cur1->xmlChildrenNode;
+            while(cur2 != NULL) {
+                // 查找到准确率
+                if((!xmlStrcmp(cur2->name, (const xmlChar *)"confidence"))) {
+                    xmlChar * key = xmlNodeGetContent(cur2);
+                    printf("confidence: %s\n", key);
+
+                    // 若准确率低于30，则放弃当前识别
+                    if(atoi((char *)key) < 30) {
+                        xmlFree(doc);
+                        fprintf(stderr, "sorry, I'm NOT sure what you say.\n");
+                        return NULL;
+                    }
+                }
+
+                // 查找到object，则执行提取字符串及属性
+                if((!xmlStrcmp(cur2->name, (const xmlChar *)"object"))) {
+                    return __get_cmd_id(doc, cur2);
+                }
+                cur2 = cur2->next;
+            }
+        }
+        cur1 = cur1->next;
+    }
+
+    // 释放文档指针
+    xmlFreeDoc(doc);
+    return NULL;
+}
+
+void recording_btn(void)
+{
+    lv_obj_t * label; // 声明一个指向标签对象的指针变量
+
+    lv_obj_t * btn1 = lv_btn_create(lv_scr_act()); // 创建第一个按钮对象
+    // 为按钮1添加一个事件回调函数，当任何事件发生时调用 event_handler
+    lv_obj_add_event_cb(btn1, recording_btn_event, LV_EVENT_ALL, NULL);
+    lv_obj_set_pos(btn1, 100, 240); // 设置按钮坐标
+    lv_obj_set_size(btn1, 80, 40);  // 设置按钮大小
+
+    // 在按钮1上创建一个标签对象
+    label = lv_label_create(btn1);
+    // 设置标签的文本为 "录音"
+    lv_label_set_text(label, "luyin"); // 没装字库 ，暂时只能用拼音
+    lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
 }
 
 int main(void)
 {
-    /*LittlevGL init*/
-    lv_init(); // lvgl初始化
+    lv_init(); // 初始化 LittlevGL 库
 
-    /*Linux frame buffer device init*/
-    fbdev_init(); // 初始化linux的帧缓冲设备，获取屏幕信息，并做内存映射
+    fbdev_init(); // 初始化 Linux 的帧缓冲设备，获取屏幕信息并进行内存映射
 
-    /*A small buffer for LittlevGL to draw the screen's content*/
-    static lv_color_t buf[DISP_BUF_SIZE]; // 画屏幕缓冲区
+    static lv_color_t buf[DISP_BUF_SIZE]; // 定义一个缓冲区用于 LittlevGL 绘制屏幕内容
 
-    /*Initialize a descriptor for the buffer*/
-    static lv_disp_draw_buf_t disp_buf;
-    lv_disp_draw_buf_init(&disp_buf, buf, NULL, DISP_BUF_SIZE); //
+    static lv_disp_draw_buf_t disp_buf;                         // 定义显示缓冲区描述符
+    lv_disp_draw_buf_init(&disp_buf, buf, NULL, DISP_BUF_SIZE); // 初始化显示缓冲区
 
-    /*Initialize and register a display driver*/
-    static lv_disp_drv_t disp_drv;
-    lv_disp_drv_init(&disp_drv);
-    disp_drv.draw_buf = &disp_buf;
-    disp_drv.flush_cb = fbdev_flush;
-    disp_drv.hor_res  = 800;
-    disp_drv.ver_res  = 480;
-    lv_disp_drv_register(&disp_drv); // 向lvgl注册一个显示结构体
+    static lv_disp_drv_t disp_drv;   // 定义显示驱动描述符
+    lv_disp_drv_init(&disp_drv);     // 初始化显示驱动描述符
+    disp_drv.draw_buf = &disp_buf;   // 设置显示驱动的缓冲区
+    disp_drv.flush_cb = fbdev_flush; // 设置刷新回调函数为帧缓冲设备的刷新函数
+    disp_drv.hor_res  = 800;         // 设置显示的水平分辨率
+    disp_drv.ver_res  = 480;         // 设置显示的垂直分辨率
+    lv_disp_drv_register(&disp_drv); // 向 LittlevGL 注册显示驱动
 
-    evdev_init();                                             // 触摸屏初始化  名字改成0
-    static lv_indev_drv_t indev_drv_1;                        // 输入设备结构体对象
-    lv_indev_drv_init(&indev_drv_1); /*Basic initialization*/ // 初始化一个结构体对象
-    indev_drv_1.type = LV_INDEV_TYPE_POINTER;                 // 设置输入类型为触摸板，鼠标，按钮
+    evdev_init();                                     // 初始化输入设备，主要用于触摸屏或鼠标
+    static lv_indev_drv_t indev_drv_1;                // 定义输入设备驱动描述符
+    lv_indev_drv_init(&indev_drv_1);                  // 初始化输入设备驱动
+    indev_drv_1.type         = LV_INDEV_TYPE_POINTER; // 设置输入设备类型为指针（触摸屏或鼠标）
+    indev_drv_1.read_cb      = evdev_read;            // 设置读取输入数据的回调函数
+    lv_indev_t * mouse_indev = lv_indev_drv_register(&indev_drv_1); // 注册输入设备到 LittlevGL
 
-    /*This function will be called periodically (by the library) to get the mouse position and state*/
-    indev_drv_1.read_cb      = evdev_read; // 用户输入设备读取输入数据的回调函数
-    lv_indev_t * mouse_indev = lv_indev_drv_register(&indev_drv_1); // 注册输入结构体对象到lvgl
-
-    /* ****************************************************************** */
-    create_login_screen();
+    /* *****************************代  码  区********************************** */
+    soc_fd = init_sock();
+    recording_btn();
     /* ************************************************************************ */
 
-    /*Handle LitlevGL tasks (tickless mode)*/ // 循环检测用户对设备是否有操作
     while(1) {
-        lv_timer_handler();
-        usleep(5000);
+        lv_timer_handler(); // 处理 LittlevGL 的任务，包括刷新屏幕和处理输入事件
+        usleep(5000);       // 休眠 5 毫秒，降低 CPU 占用率
     }
 
     return 0;
 }
 
-/*Set in lv_conf.h as `LV_TICK_CUSTOM_SYS_TIME_EXPR`*/
 uint32_t custom_tick_get(void)
 {
-    static uint64_t start_ms = 0;
+    static uint64_t start_ms = 0; // 用于记录程序开始的时间戳
     if(start_ms == 0) {
-        struct timeval tv_start;
-        gettimeofday(&tv_start, NULL);
-        start_ms = (tv_start.tv_sec * 1000000 + tv_start.tv_usec) / 1000;
+        struct timeval tv_start;                                          // 定义时间结构体
+        gettimeofday(&tv_start, NULL);                                    // 获取当前时间
+        start_ms = (tv_start.tv_sec * 1000000 + tv_start.tv_usec) / 1000; // 将时间转换为毫秒
     }
 
-    struct timeval tv_now;
-    gettimeofday(&tv_now, NULL);
-    uint64_t now_ms;
-    now_ms = (tv_now.tv_sec * 1000000 + tv_now.tv_usec) / 1000;
+    struct timeval tv_now;                                      // 定义当前时间的结构体
+    gettimeofday(&tv_now, NULL);                                // 获取当前时间
+    uint64_t now_ms;                                            // 当前时间的毫秒表示
+    now_ms = (tv_now.tv_sec * 1000000 + tv_now.tv_usec) / 1000; // 转换为毫秒
 
-    uint32_t time_ms = now_ms - start_ms;
-    return time_ms;
+    uint32_t time_ms = now_ms - start_ms; // 计算从程序开始到现在经过的时间
+    return time_ms;                       // 返回经过的时间
 }
+
+// // 创建第二个按钮对象
+// lv_obj_t * btn2 = lv_btn_create(lv_scr_act());
+// // 为按钮2添加一个事件回调函数，当任何事件发生时调用 event_handler
+// lv_obj_add_event_cb(btn2, event_handler, LV_EVENT_ALL, NULL);
+// // 将按钮2对齐到屏幕中心，偏移为 (0, 40)
+// lv_obj_align(btn2, LV_ALIGN_CENTER, 0, 40);
+// // 将按钮2设置为可切换状态（Checkable）
+// lv_obj_add_flag(btn2, LV_OBJ_FLAG_CHECKABLE);
+// // 设置按钮2的高度为内容高度
+// lv_obj_set_height(btn2, LV_SIZE_CONTENT);
+
+// // 在按钮2上创建一个标签对象
+// label = lv_label_create(btn2);
+// // 设置标签的文本为 "Toggle"
+// lv_label_set_text(label, "Toggle");
+// // 将标签居中对齐到按钮2上
+// lv_obj_center(label);
