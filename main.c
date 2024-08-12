@@ -18,6 +18,7 @@
 #include <linux/input.h>
 #include <stdlib.h>
 #include <strings.h>
+#include <unistd.h> // 在文件头部包含此行代码
 
 #include "libxml/xmlmemory.h" //需要放在\86下
 #include "libxml/parser.h"
@@ -52,8 +53,8 @@ int init_sock(void)
     // 配置结构体
     struct sockaddr_in jack;
     jack.sin_family      = AF_INET;
-    jack.sin_port        = htons(3000);
-    jack.sin_addr.s_addr = inet_addr("192.168.10.148");
+    jack.sin_port        = htons(54321);
+    jack.sin_addr.s_addr = inet_addr("192.168.11.234");
 
     int con_fd = connect(soc_fd, (struct sockaddr *)&jack, len);
     if(-1 == con_fd) {
@@ -65,7 +66,7 @@ int init_sock(void)
 }
 
 // 发送录音文件
-int send_file(int soc_fd)
+int send_file(int fd)
 {
     int wav_fd = open("./example.wav", O_RDWR);
     if(-1 == wav_fd) {
@@ -85,12 +86,13 @@ int send_file(int soc_fd)
             break;
         else {
             sum += ret;
-            write(soc_fd, buf, ret);
+            write(fd, buf, ret);
         }
     }
     printf("写入了%d个字节", sum);
     close(wav_fd);
     printf("传输成功！\n");
+    return 0;
 }
 
 static void recording_btn_event(lv_event_t * e)
@@ -103,12 +105,17 @@ static void recording_btn_event(lv_event_t * e)
         printf("录音结束\n");
 
         if(send_file(soc_fd) == 0) {
+            printf("发送成功\n");
             if(rec_file(soc_fd) == 0) {
+                printf("接受成功\n");
                 xmlChar * id = parse_xml("result.xml");
                 if(id) {
                     printf("id=%s\n", id);
+                    if(atoi((char *)id) == 1) {
+                        system("mplayer 21.mp3 &");
+                    }
                     if(atoi((char *)id) == 2) {
-                        printf("2222222\n");
+                        system("killall 9 mplayer");
                     }
                     xmlFree(id);
                 }
@@ -119,7 +126,7 @@ static void recording_btn_event(lv_event_t * e)
     }
 }
 
-int rec_file(int soc_fd)
+int rec_file(int fd)
 {
     char xml_buf[1024];
     int xml_fd;
@@ -128,11 +135,11 @@ int rec_file(int soc_fd)
         perror("open result failed!\n");
         return -1;
     }
-    int ret = read(soc_fd, xml_buf, 1024);
+    int ret = read(fd, xml_buf, 1024);
     write(xml_fd, xml_buf, ret);
     close(xml_fd);
+    return 0;
 }
-
 // 传入的cur == object作为根节点
 xmlChar * __get_cmd_id(xmlDocPtr doc, xmlNodePtr cur)
 {
@@ -167,14 +174,12 @@ xmlChar * parse_xml(char * xmlfile)
 {
     xmlDocPtr doc;
     xmlNodePtr cur1, cur2;
-
     // 分析一个xml文件，并返回一个xml文档的对象指针： 也就是指向树
     doc = xmlParseFile(xmlfile);
     if(doc == NULL) {
         fprintf(stderr, "Document not parsed successfully. \n");
         return NULL;
     }
-
     // 获得文档的根节点
     cur1 = xmlDocGetRootElement(doc);
     if(cur1 == NULL) {
@@ -188,7 +193,6 @@ xmlChar * parse_xml(char * xmlfile)
         xmlFreeDoc(doc);
         return NULL;
     }
-
     // 获取子元素节点
     cur1 = cur1->xmlChildrenNode;
 
@@ -210,7 +214,6 @@ xmlChar * parse_xml(char * xmlfile)
                         return NULL;
                     }
                 }
-
                 // 查找到object，则执行提取字符串及属性
                 if((!xmlStrcmp(cur2->name, (const xmlChar *)"object"))) {
                     return __get_cmd_id(doc, cur2);

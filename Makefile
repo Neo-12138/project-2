@@ -32,6 +32,9 @@ bindir 			?= $(prefix)/bin
 #Collect the files to compile
 MAINSRC = 		./main.c
 
+# //自定义代码
+DEMOSRC =          ./demo/*.c
+
 include $(LVGL_DIR)/lvgl/lvgl.mk
 include $(LVGL_DIR)/lv_drivers/lv_drivers.mk
 
@@ -44,7 +47,7 @@ COBJS 			= $(CSRCS:.c=$(OBJEXT))
 
 MAINOBJ 		= $(MAINSRC:.c=$(OBJEXT))
 
-SRCS 			= $(ASRCS) $(CSRCS) $(MAINSRC)
+SRCS 			= $(ASRCS) $(CSRCS) $(MAINSRC)                 $(DEMOSRC)
 OBJS 			= $(AOBJS) $(COBJS) $(MAINOBJ)
 TARGET 			= $(addprefix $(BUILD_OBJ_DIR)/, $(patsubst ./%, %, $(OBJS)))
 
