@@ -8,92 +8,11 @@
 #include <sys/time.h>
 #include <dirent.h>
 
-#include <stdio.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <linux/input.h>
-#include <stdlib.h>
-#include <strings.h>
-#include <unistd.h> // 在文件头部包含此行代码
+#include "request_gy39.h" //获取gy_39
 
-#include "libxml/xmlmemory.h" //需要放在\86下
-#include "libxml/parser.h"
+#include "arecording.h"
 
 #define DISP_BUF_SIZE (800 * 480) // 定义显示缓冲区的大小，800x480 像素
-
-int soc_fd; // 客户端套接字
-
-int init_sock(void);                                   // 函数原型
-int send_file(int sock_fd);                            // 函数原型
-int rec_file(int sock_fd);                             // 函数原型
-xmlChar * __get_cmd_id(xmlDocPtr doc, xmlNodePtr cur); // 函数原型
-xmlChar * parse_xml(char * xmlfile);                   // 函数原型
-void recording_btn(void);                              // 函数原型
-uint32_t custom_tick_get(void);                        // 函数原型
-
-int init_sock(void)
-{
-    // 创建套接字
-    soc_fd = socket(AF_INET, SOCK_STREAM, 0);
-    if(-1 == soc_fd) {
-        perror("socket failed!\n");
-        exit(-1);
-    }
-    // 设置端口复用
-    int on = 1;
-    setsockopt(soc_fd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
-    // 发起连接请求
-    printf("正在连接\n");
-
-    socklen_t len = sizeof(struct sockaddr);
-    // 配置结构体
-    struct sockaddr_in jack;
-    jack.sin_family      = AF_INET;
-    jack.sin_port        = htons(54321);
-    jack.sin_addr.s_addr = inet_addr("192.168.11.234");
-
-    int con_fd = connect(soc_fd, (struct sockaddr *)&jack, len);
-    if(-1 == con_fd) {
-        perror("connect failed!\n");
-        exit(-1);
-    }
-    printf("已连接！\n");
-    return soc_fd;
-}
-
-// 发送录音文件
-int send_file(int fd)
-{
-    int wav_fd = open("./example.wav", O_RDWR);
-    if(-1 == wav_fd) {
-        perror("open wav failed!\n");
-        return -1;
-    }
-    char buf[1024];
-    int sum = 0;
-    int ret;
-    while(1) {
-        memset(buf, 0, sizeof(buf));
-        ret = read(wav_fd, buf, 1024);
-        if(-1 == ret) {
-            perror("read wav failed!\n");
-            return -1;
-        } else if(0 == ret)
-            break;
-        else {
-            sum += ret;
-            write(fd, buf, ret);
-        }
-    }
-    printf("写入了%d个字节", sum);
-    close(wav_fd);
-    printf("传输成功！\n");
-    return 0;
-}
 
 static void recording_btn_event(lv_event_t * e)
 {
@@ -117,6 +36,11 @@ static void recording_btn_event(lv_event_t * e)
                     if(atoi((char *)id) == 2) {
                         system("killall 9 mplayer");
                     }
+                    if(atoi((char *)id) == 100) {
+                        printf("请求gy39\n");
+                        gy_info * p = request_gy39();
+                        printf("[%d]\n", __LINE__);
+                    }
                     xmlFree(id);
                 }
             }
@@ -124,109 +48,6 @@ static void recording_btn_event(lv_event_t * e)
     } else if(code == LV_EVENT_VALUE_CHANGED) {
         LV_LOG_USER("Toggled");
     }
-}
-
-int rec_file(int fd)
-{
-    char xml_buf[1024];
-    int xml_fd;
-    xml_fd = open("./result.xml", O_RDWR | O_CREAT | O_TRUNC, 0666);
-    if(-1 == xml_fd) {
-        perror("open result failed!\n");
-        return -1;
-    }
-    int ret = read(fd, xml_buf, 1024);
-    write(xml_fd, xml_buf, ret);
-    close(xml_fd);
-    return 0;
-}
-// 传入的cur == object作为根节点
-xmlChar * __get_cmd_id(xmlDocPtr doc, xmlNodePtr cur)
-{
-    xmlChar *key, *id;
-
-    cur = cur->xmlChildrenNode;
-
-    while(cur != NULL) {
-        // 查找到cmd子节点
-        if((!xmlStrcmp(cur->name, (const xmlChar *)"cmd"))) {
-            // 取出内容
-            key = xmlNodeGetContent(cur);
-
-            printf("cmd: %s\n", key);
-            xmlFree(key);
-
-            // 读取节点属性
-            id = xmlGetProp(cur, (const xmlChar *)"id");
-            printf("id: %s\n", id);
-
-            xmlFree(doc);
-            return id;
-        }
-        cur = cur->next;
-    }
-    // 释放文档指针
-    xmlFree(doc);
-    return NULL;
-}
-
-xmlChar * parse_xml(char * xmlfile)
-{
-    xmlDocPtr doc;
-    xmlNodePtr cur1, cur2;
-    // 分析一个xml文件，并返回一个xml文档的对象指针： 也就是指向树
-    doc = xmlParseFile(xmlfile);
-    if(doc == NULL) {
-        fprintf(stderr, "Document not parsed successfully. \n");
-        return NULL;
-    }
-    // 获得文档的根节点
-    cur1 = xmlDocGetRootElement(doc);
-    if(cur1 == NULL) {
-        fprintf(stderr, "empty document\n");
-        xmlFreeDoc(doc);
-        return NULL;
-    }
-    // 检查根节点的名称是否为nlp
-    if(xmlStrcmp(cur1->name, (const xmlChar *)"nlp")) {
-        fprintf(stderr, "document of the wrong type, root node != nlp");
-        xmlFreeDoc(doc);
-        return NULL;
-    }
-    // 获取子元素节点
-    cur1 = cur1->xmlChildrenNode;
-
-    while(cur1 != NULL) {
-        // 检查子元素是否为result
-        if((!xmlStrcmp(cur1->name, (const xmlChar *)"result"))) {
-            // 得到result的子节点
-            cur2 = cur1->xmlChildrenNode;
-            while(cur2 != NULL) {
-                // 查找到准确率
-                if((!xmlStrcmp(cur2->name, (const xmlChar *)"confidence"))) {
-                    xmlChar * key = xmlNodeGetContent(cur2);
-                    printf("confidence: %s\n", key);
-
-                    // 若准确率低于30，则放弃当前识别
-                    if(atoi((char *)key) < 30) {
-                        xmlFree(doc);
-                        fprintf(stderr, "sorry, I'm NOT sure what you say.\n");
-                        return NULL;
-                    }
-                }
-                // 查找到object，则执行提取字符串及属性
-                if((!xmlStrcmp(cur2->name, (const xmlChar *)"object"))) {
-                    return __get_cmd_id(doc, cur2);
-                }
-                cur2 = cur2->next;
-            }
-        }
-        cur1 = cur1->next;
-    }
-
-    // 释放文档指针
-    xmlFreeDoc(doc);
-    return NULL;
 }
 
 void recording_btn(void)
@@ -302,21 +123,3 @@ uint32_t custom_tick_get(void)
     uint32_t time_ms = now_ms - start_ms; // 计算从程序开始到现在经过的时间
     return time_ms;                       // 返回经过的时间
 }
-
-// // 创建第二个按钮对象
-// lv_obj_t * btn2 = lv_btn_create(lv_scr_act());
-// // 为按钮2添加一个事件回调函数，当任何事件发生时调用 event_handler
-// lv_obj_add_event_cb(btn2, event_handler, LV_EVENT_ALL, NULL);
-// // 将按钮2对齐到屏幕中心，偏移为 (0, 40)
-// lv_obj_align(btn2, LV_ALIGN_CENTER, 0, 40);
-// // 将按钮2设置为可切换状态（Checkable）
-// lv_obj_add_flag(btn2, LV_OBJ_FLAG_CHECKABLE);
-// // 设置按钮2的高度为内容高度
-// lv_obj_set_height(btn2, LV_SIZE_CONTENT);
-
-// // 在按钮2上创建一个标签对象
-// label = lv_label_create(btn2);
-// // 设置标签的文本为 "Toggle"
-// lv_label_set_text(label, "Toggle");
-// // 将标签居中对齐到按钮2上
-// lv_obj_center(label);

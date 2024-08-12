@@ -30,10 +30,8 @@ prefix 			?= /usr
 bindir 			?= $(prefix)/bin
 
 #Collect the files to compile
-MAINSRC = 		./main.c
+MAINSRC = 		./main.c  ./request_gy39.c  ./arecording.c
 
-# //自定义代码
-DEMOSRC =          ./demo/*.c
 
 include $(LVGL_DIR)/lvgl/lvgl.mk
 include $(LVGL_DIR)/lv_drivers/lv_drivers.mk
@@ -47,7 +45,7 @@ COBJS 			= $(CSRCS:.c=$(OBJEXT))
 
 MAINOBJ 		= $(MAINSRC:.c=$(OBJEXT))
 
-SRCS 			= $(ASRCS) $(CSRCS) $(MAINSRC)                 $(DEMOSRC)
+SRCS 			= $(ASRCS) $(CSRCS) $(MAINSRC)
 OBJS 			= $(AOBJS) $(COBJS) $(MAINOBJ)
 TARGET 			= $(addprefix $(BUILD_OBJ_DIR)/, $(patsubst ./%, %, $(OBJS)))
 

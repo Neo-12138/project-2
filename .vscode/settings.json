@@ -3,6 +3,14 @@
         "stdio.h": "c",
         "unistd.h": "c",
         "stdlib.h": "c",
-        "thread": "c"
+        "thread": "c",
+        "fcntl.h": "c",
+        "types.h": "c",
+        "pthread.h": "c",
+        "fbdev.h": "c",
+        "lvgl.h": "c",
+        "lv_demos.h": "c",
+        "time.h": "c",
+        "evdev.h": "c"
     }
 }
